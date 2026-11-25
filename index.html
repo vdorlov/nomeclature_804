@@ -4,16 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Номенклатура медицинских услуг</title>
-    
-    <!-- Иконка для вкладки (убирает ошибку favicon.ico из консоли) -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">
     
+    <!-- Скрипты загружаются в надежном порядке -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <style>
-        [x-cloak] { display: none !important; }
         .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -32,7 +30,14 @@
         .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background-color: #eff6ff; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased" x-cloak>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+
+    <!-- Встроенный перехватчик ошибок: если JS сломается, вы увидите это на экране -->
+    <div id="js-error-banner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded shadow">
+        <p class="font-bold">⚠️ Ошибка загрузки интерфейса</p>
+        <p id="js-error-message" class="text-sm mt-1 font-mono"></p>
+        <p class="text-sm mt-2">Попробуйте очистить кэш браузера (Ctrl+F5) или загрузить файл вручную ниже.</p>
+    </div>
 
     <div x-data="medicalApp()" x-init="init()" class="max-w-7xl mx-auto p-4 md:p-8">
         
@@ -44,22 +49,22 @@
         </div>
 
         <!-- 1. Индикатор загрузки -->
-        <div x-show="isLoading" class="flex flex-col items-center justify-center py-20" x-transition>
+        <div x-show="isLoading" class="flex flex-col items-center justify-center py-20">
             <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
             <p class="text-slate-600 font-medium animate-pulse">Загрузка данных...</p>
         </div>
 
-        <!-- 2. Блок ошибки / ручной загрузки (появляется, если автозагрузка не сработала) -->
-        <div x-show="!isLoading && showManualUpload" class="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center" x-transition>
+        <!-- 2. Блок ошибки / ручной загрузки -->
+        <div x-show="!isLoading && showManualUpload" class="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
             <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             </div>
-            <h3 class="text-lg font-semibold text-slate-900 mb-2">Не удалось загрузить файл автоматически</h3>
+            <h3 class="text-lg font-semibold text-slate-900 mb-2">Файл не найден автоматически</h3>
             <p class="text-red-600 font-medium mb-2" x-text="errorMessage"></p>
             <p class="text-slate-500 mb-6 max-w-md mx-auto text-sm">
-                1. Проверьте, что файл лежит в корне репозитория.<br>
-                2. Проверьте <strong>точное совпадение имени и регистра букв</strong> (например, <span class="font-mono bg-slate-100 px-1 rounded" x-text="config.fileName"></span>).<br>
-                3. Или просто загрузите файл вручную ниже (это безопасно и работает мгновенно).
+                1. Убедитесь, что файл лежит в корне репозитория.<br>
+                2. Проверьте <strong>точное совпадение имени и регистра</strong> (например, <span class="font-mono bg-slate-100 px-1 rounded" x-text="config.fileName"></span>).<br>
+                3. Или просто загрузите файл вручную (данные не покидают ваш браузер).
             </p>
             
             <label class="drop-zone flex flex-col items-center justify-center w-full max-w-md mx-auto h-32 rounded-lg cursor-pointer bg-slate-50">
@@ -71,8 +76,8 @@
             </label>
         </div>
 
-        <!-- 3. Основной интерфейс (появляется только при успешной загрузке) -->
-        <div x-show="!isLoading && !showManualUpload" class="space-y-6" x-transition>
+        <!-- 3. Основной интерфейс -->
+        <div x-show="!isLoading && !showManualUpload" class="space-y-6">
             
             <!-- Панель фильтров -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
@@ -90,7 +95,6 @@
                 </div>
 
                 <div class="flex flex-wrap gap-6 pt-2 border-t border-slate-100">
-                    <!-- Раздел -->
                     <div class="space-y-2">
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Раздел</label>
                         <div class="flex gap-4 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
@@ -103,7 +107,6 @@
                         </div>
                     </div>
 
-                    <!-- Тип услуги -->
                     <div class="space-y-2 relative" @click.outside="dropdowns.types = false">
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Тип услуги</label>
                         <button @click="dropdowns.types = !dropdowns.types" class="flex items-center justify-between w-56 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -125,7 +128,6 @@
                         </div>
                     </div>
 
-                    <!-- Класс услуги -->
                     <div class="space-y-2 relative" @click.outside="dropdowns.classes = false">
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Класс услуги</label>
                         <button @click="dropdowns.classes = !dropdowns.classes" class="flex items-center justify-between w-56 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -149,13 +151,11 @@
                 </div>
             </div>
 
-            <!-- Статистика -->
             <div class="flex items-center justify-between text-sm text-slate-600 px-1">
                 <span>Найдено записей: <span class="font-bold text-slate-900" x-text="filteredData.length"></span></span>
                 <span class="text-xs text-slate-400">Отображается: <span x-text="visibleData.length"></span> (виртуальный рендеринг)</span>
             </div>
 
-            <!-- Таблица -->
             <div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
                 <div class="grid grid-cols-12 gap-4 bg-slate-100 border-b border-slate-200 px-6 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider sticky top-0 z-10">
                     <div class="col-span-2">Код услуги</div>
@@ -193,11 +193,23 @@
 
     <script>
         // ==========================================
-        // НАСТРОЙКИ: Проверьте это значение!
+        // НАСТРОЙКИ: ПРОВЕРЬТЕ ЭТО ЗНАЧЕНИЕ!
         // ==========================================
         const config = {
             // Имя файла должно совпадать ПОЛНОСТЬЮ, включая заглавные/строчные буквы!
+            // Откройте ваш репозиторий GitHub и скопируйте имя файла оттуда.
             fileName: 'nomenclature_804.xlsx' 
+        };
+
+        // Глобальный перехватчик ошибок для вывода на экран
+        window.onerror = function(message, source, lineno, colno, error) {
+            const banner = document.getElementById('js-error-banner');
+            const msg = document.getElementById('js-error-message');
+            if (banner && msg) {
+                banner.classList.remove('hidden');
+                msg.textContent = `${message} (Строка: ${lineno})`;
+            }
+            return false;
         };
 
         function medicalApp() {
@@ -225,11 +237,10 @@
                     this.errorMessage = '';
 
                     try {
-                        // Добавляем ?t=... чтобы обойти кэш браузера и получить свежую версию файла
                         const response = await fetch(`./${config.fileName}?t=${Date.now()}`);
                         
                         if (!response.ok) {
-                            throw new Error(`Файл не найден (ошибка ${response.status}). Проверьте имя файла в настройках.`);
+                            throw new Error(`Файл не найден (ошибка ${response.status}). Проверьте точное имя файла в настройках кода.`);
                         }
                         
                         const buffer = await response.arrayBuffer();
@@ -240,7 +251,7 @@
                         this.errorMessage = err.message;
                         this.showManualUpload = true;
                     } finally {
-                        // ГАРАНТИРОВАННО останавливаем загрузку, даже если произошла критическая ошибка
+                        // ГАРАНТИРОВАННО останавливаем загрузку
                         this.isLoading = false;
                     }
                 },
@@ -281,7 +292,6 @@
                     this.rawData = jsonData.map(row => {
                         const newRow = {};
                         for (const key in row) {
-                            // Убираем пробелы в названиях столбцов на всякий случай
                             newRow[key.trim()] = String(row[key]).trim();
                         }
                         return newRow;
