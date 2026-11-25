@@ -4,11 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Номенклатура медицинских услуг</title>
+    
+    <!-- Иконка для вкладки (убирает ошибку favicon.ico из консоли) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <style>
+        [x-cloak] { display: none !important; }
         .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -27,7 +32,7 @@
         .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background-color: #eff6ff; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+<body class="bg-slate-50 text-slate-800 font-sans antialiased" x-cloak>
 
     <div x-data="medicalApp()" x-init="init()" class="max-w-7xl mx-auto p-4 md:p-8">
         
@@ -38,33 +43,36 @@
             <p class="text-slate-500">Интерактивный справочник услуг с мгновенной фильтрацией</p>
         </div>
 
-        <!-- Индикатор загрузки -->
+        <!-- 1. Индикатор загрузки -->
         <div x-show="isLoading" class="flex flex-col items-center justify-center py-20" x-transition>
             <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
             <p class="text-slate-600 font-medium animate-pulse">Загрузка данных...</p>
         </div>
 
-        <!-- Блок ручной загрузки (появляется, если автозагрузка не сработала) -->
-        <div x-show="showManualUpload" class="bg-white rounded-xl shadow-sm border border-blue-200 p-8 text-center" x-transition>
-            <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <!-- 2. Блок ошибки / ручной загрузки (появляется, если автозагрузка не сработала) -->
+        <div x-show="!isLoading && showManualUpload" class="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center" x-transition>
+            <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             </div>
-            <h3 class="text-lg font-semibold text-slate-900 mb-2">Файл не найден автоматически</h3>
-            <p class="text-slate-500 mb-6 max-w-md mx-auto">Если вы открыли файл локально, браузер блокирует автозагрузку. Просто перетащите файл <strong>nomenclature_804.xlsx</strong> сюда. Данные обрабатываются только в вашем браузере.</p>
+            <h3 class="text-lg font-semibold text-slate-900 mb-2">Не удалось загрузить файл автоматически</h3>
+            <p class="text-red-600 font-medium mb-2" x-text="errorMessage"></p>
+            <p class="text-slate-500 mb-6 max-w-md mx-auto text-sm">
+                1. Проверьте, что файл лежит в корне репозитория.<br>
+                2. Проверьте <strong>точное совпадение имени и регистра букв</strong> (например, <span class="font-mono bg-slate-100 px-1 rounded" x-text="config.fileName"></span>).<br>
+                3. Или просто загрузите файл вручную ниже (это безопасно и работает мгновенно).
+            </p>
             
             <label class="drop-zone flex flex-col items-center justify-center w-full max-w-md mx-auto h-32 rounded-lg cursor-pointer bg-slate-50">
                 <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg class="w-8 h-8 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <p class="mb-2 text-sm text-slate-500"><span class="font-semibold text-blue-600">Нажмите для выбора</span> или перетащите файл</p>
-                    <p class="text-xs text-slate-400">.XLSX</p>
+                    <svg class="w-8 h-8 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <p class="mb-2 text-sm text-slate-500"><span class="font-semibold text-blue-600">Выберите файл</span> или перетащите его сюда</p>
                 </div>
                 <input type="file" class="hidden" accept=".xlsx, .xls" @change="handleFileUpload($event)" />
             </label>
-            <p x-show="uploadError" class="text-red-500 text-sm mt-3" x-text="uploadError"></p>
         </div>
 
-        <!-- Основной интерфейс -->
-        <div x-show="!isLoading && !showManualUpload" class="space-y-6" style="display: none;">
+        <!-- 3. Основной интерфейс (появляется только при успешной загрузке) -->
+        <div x-show="!isLoading && !showManualUpload" class="space-y-6" x-transition>
             
             <!-- Панель фильтров -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
@@ -102,7 +110,7 @@
                             <span x-text="filters.types.length > 0 ? `Выбрано: ${filters.types.length}` : 'Все типы'"></span>
                             <svg class="w-4 h-4 ml-2 text-slate-400 transform transition-transform" :class="{'rotate-180': dropdowns.types}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
-                        <div x-show="dropdowns.types" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="dropdown-hidden" x-transition:enter-end="dropdown-visible" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="dropdown-visible" x-transition:leave-end="dropdown-hidden" class="absolute z-20 mt-1 w-72 bg-white rounded-lg shadow-xl border border-slate-200 py-2">
+                        <div x-show="dropdowns.types" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="dropdown-hidden" x-transition:enter-end="dropdown-visible" class="absolute z-20 mt-1 w-72 bg-white rounded-lg shadow-xl border border-slate-200 py-2">
                             <div class="px-3 py-2 border-b border-slate-100">
                                 <input type="text" x-model="dropdownSearch.type" placeholder="Поиск типа..." class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
                             </div>
@@ -124,7 +132,7 @@
                             <span x-text="filters.classes.length > 0 ? `Выбрано: ${filters.classes.length}` : 'Все классы'"></span>
                             <svg class="w-4 h-4 ml-2 text-slate-400 transform transition-transform" :class="{'rotate-180': dropdowns.classes}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
-                        <div x-show="dropdowns.classes" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="dropdown-hidden" x-transition:enter-end="dropdown-visible" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="dropdown-visible" x-transition:leave-end="dropdown-hidden" class="absolute z-20 mt-1 w-72 bg-white rounded-lg shadow-xl border border-slate-200 py-2">
+                        <div x-show="dropdowns.classes" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="dropdown-hidden" x-transition:enter-end="dropdown-visible" class="absolute z-20 mt-1 w-72 bg-white rounded-lg shadow-xl border border-slate-200 py-2">
                             <div class="px-3 py-2 border-b border-slate-100">
                                 <input type="text" x-model="dropdownSearch.class" placeholder="Поиск класса..." class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
                             </div>
@@ -184,31 +192,64 @@
     </div>
 
     <script>
+        // ==========================================
+        // НАСТРОЙКИ: Проверьте это значение!
+        // ==========================================
+        const config = {
+            // Имя файла должно совпадать ПОЛНОСТЬЮ, включая заглавные/строчные буквы!
+            fileName: 'nomenclature_804.xlsx' 
+        };
+
         function medicalApp() {
             return {
-                rawData: [], filteredData: [], isLoading: true, showManualUpload: false, uploadError: null,
-                searchQuery: '', filters: { sections: ['A', 'B'], types: [], classes: [] },
-                uniqueTypes: [], uniqueClasses: [], dropdowns: { types: false, classes: false },
-                dropdownSearch: { type: '', class: '' }, rowHeight: 48, containerHeight: 600, scrollTop: 0,
+                rawData: [], 
+                filteredData: [], 
+                isLoading: true, 
+                showManualUpload: false, 
+                errorMessage: '',
+                
+                searchQuery: '', 
+                filters: { sections: ['A', 'B'], types: [], classes: [] },
+                uniqueTypes: [], 
+                uniqueClasses: [], 
+                dropdowns: { types: false, classes: false },
+                dropdownSearch: { type: '', class: '' }, 
+                
+                rowHeight: 48, 
+                containerHeight: 600, 
+                scrollTop: 0,
 
                 async init() {
+                    this.isLoading = true;
+                    this.showManualUpload = false;
+                    this.errorMessage = '';
+
                     try {
-                        // Пытаемся загрузить файл из той же папки (идеально работает на GitHub Pages)
-                        const response = await fetch('./nomenclature_804.xlsx');
-                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        // Добавляем ?t=... чтобы обойти кэш браузера и получить свежую версию файла
+                        const response = await fetch(`./${config.fileName}?t=${Date.now()}`);
+                        
+                        if (!response.ok) {
+                            throw new Error(`Файл не найден (ошибка ${response.status}). Проверьте имя файла в настройках.`);
+                        }
+                        
                         const buffer = await response.arrayBuffer();
                         this.processWorkbook(buffer);
+                        
                     } catch (err) {
-                        console.warn("Автозагрузка не удалась (это нормально при локальном открытии без сервера):", err);
+                        console.error("Ошибка автозагрузки:", err);
+                        this.errorMessage = err.message;
+                        this.showManualUpload = true;
+                    } finally {
+                        // ГАРАНТИРОВАННО останавливаем загрузку, даже если произошла критическая ошибка
                         this.isLoading = false;
-                        this.showManualUpload = true; // Мгновенно показываем зону загрузки, без зависаний
                     }
                 },
 
                 handleFileUpload(event) {
                     const file = event.target.files[0];
                     if (!file) return;
-                    this.uploadError = null;
+                    
+                    this.errorMessage = '';
                     this.isLoading = true;
                     this.showManualUpload = false;
 
@@ -218,10 +259,16 @@
                             this.processWorkbook(e.target.result);
                             this.isLoading = false;
                         } catch (err) {
+                            console.error("Ошибка парсинга:", err);
                             this.isLoading = false;
                             this.showManualUpload = true;
-                            this.uploadError = "Ошибка чтения файла. Убедитесь, что это корректный .xlsx";
+                            this.errorMessage = "Не удалось прочитать файл. Убедитесь, что это корректный .xlsx";
                         }
+                    };
+                    reader.onerror = () => {
+                        this.isLoading = false;
+                        this.showManualUpload = true;
+                        this.errorMessage = "Ошибка чтения файла с диска.";
                     };
                     reader.readAsArrayBuffer(file);
                 },
@@ -233,7 +280,10 @@
                     
                     this.rawData = jsonData.map(row => {
                         const newRow = {};
-                        for (const key in row) newRow[key.trim()] = String(row[key]).trim();
+                        for (const key in row) {
+                            // Убираем пробелы в названиях столбцов на всякий случай
+                            newRow[key.trim()] = String(row[key]).trim();
+                        }
                         return newRow;
                     });
 
@@ -264,7 +314,10 @@
                         if (this.filters.classes.length > 0 && !this.filters.classes.includes(row['Класс услуги'])) return false;
                         return true;
                     });
-                    if (this.$refs.scrollContainer) this.$refs.scrollContainer.scrollTop = 0;
+                    
+                    if (this.$refs.scrollContainer) {
+                        this.$refs.scrollContainer.scrollTop = 0;
+                    }
                     this.scrollTop = 0;
                 },
 
