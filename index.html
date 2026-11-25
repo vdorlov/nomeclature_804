@@ -1,409 +1,1385 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Номенклатура медицинских услуг</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MEDNOMEN · Номенклатура медицинских услуг</title>
+<meta name="description" content="Интерактивный справочник номенклатуры медицинских услуг с мгновенной фильтрацией" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23070b14'/><path d='M4 16h4l2-6 3 12 3-9 2 3h10' fill='none' stroke='%2322d3ee' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
 
-    <style>
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .row-animate { animation: fadeIn 0.2s ease-out forwards; }
-
-        .virtual-container { height: 600px; overflow-y: auto; position: relative; }
-        .virtual-content { position: absolute; top: 0; left: 0; right: 0; }
-
-        .dropdown-hidden { opacity: 0; transform: scaleY(0.95); pointer-events: none; }
-        .dropdown-visible { opacity: 1; transform: scaleY(1); pointer-events: auto; }
-        
-        .drop-zone { transition: all 0.3s ease; border: 2px dashed #cbd5e1; }
-        .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background-color: #eff6ff; }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased">
-
-    <div id="js-error-banner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded shadow">
-        <p class="font-bold">⚠️ Ошибка загрузки интерфейса</p>
-        <p id="js-error-message" class="text-sm mt-1 font-mono"></p>
-        <p class="text-sm mt-2">Попробуйте очистить кэш браузера (Ctrl+F5) или загрузить файл вручную ниже.</p>
-    </div>
-
-    <div x-data="medicalApp()" x-init="init()" class="max-w-7xl mx-auto p-4 md:p-8">
-        
-        <div class="mb-8 text-center md:text-left">
-            <h1 class="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight mb-2">
-                <span class="text-blue-600">Медицинская</span> номенклатура
-            </h1>
-            <p class="text-slate-500">Интерактивный справочник услуг с мгновенной фильтрацией</p>
-        </div>
-
-        <div x-show="isLoading" class="flex flex-col items-center justify-center py-20">
-            <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-            <p class="text-slate-600 font-medium animate-pulse">Загрузка данных...</p>
-        </div>
-
-        <div x-show="!isLoading && showManualUpload" class="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
-            <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            </div>
-            <h3 class="text-lg font-semibold text-slate-900 mb-2">Файл не найден автоматически</h3>
-            <p class="text-red-600 font-medium mb-2" x-text="errorMessage"></p>
-            <p class="text-slate-500 mb-6 max-w-md mx-auto text-sm">
-                1. Убедитесь, что файл лежит в корне репозитория.<br>
-                2. Проверьте <strong>точное совпадение имени и регистра</strong> (например, <span class="font-mono bg-slate-100 px-1 rounded" x-text="config.fileName"></span>).<br>
-                3. Или просто загрузите файл вручную (данные не покидают ваш браузер).
-            </p>
-            
-            <label class="drop-zone flex flex-col items-center justify-center w-full max-w-md mx-auto h-32 rounded-lg cursor-pointer bg-slate-50">
-                <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg class="w-8 h-8 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <p class="mb-2 text-sm text-slate-500"><span class="font-semibold text-blue-600">Выберите файл</span> или перетащите его сюда</p>
-                </div>
-                <input type="file" class="hidden" accept=".xlsx, .xls" @change="handleFileUpload($event)" />
-            </label>
-        </div>
-
-        <div x-show="!isLoading && !showManualUpload" class="space-y-6">
-            
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-                    <div class="relative w-full md:w-96">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        </div>
-                        <input type="text" x-model="searchQuery" @input="applyFilters()" placeholder="Поиск по коду или наименованию..." class="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm">
-                    </div>
-                    <button @click="resetFilters()" class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-red-600 transition-all">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                        Сбросить фильтры
-                    </button>
-                </div>
-
-                <div class="flex flex-wrap gap-6 pt-2 border-t border-slate-100">
-                    <div class="space-y-2">
-                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Раздел</label>
-                        <div class="flex gap-4 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                            <template x-for="sec in availableSections" :key="sec">
-                                <label class="inline-flex items-center cursor-pointer group">
-                                    <input type="checkbox" :value="sec" x-model="filters.sections" @change="applyFilters()" class="form-checkbox h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm font-medium text-slate-700 group-hover:text-blue-700" x-text="'Раздел ' + sec"></span>
-                                </label>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2 relative" @click.outside="dropdowns.types = false">
-                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Тип услуги</label>
-                        <button @click="dropdowns.types = !dropdowns.types" class="flex items-center justify-between w-56 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <span x-text="filters.types.length > 0 ? `Выбрано: ${filters.types.length}` : 'Все типы'"></span>
-                            <svg class="w-4 h-4 ml-2 text-slate-400 transform transition-transform" :class="{'rotate-180': dropdowns.types}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        </button>
-                        <div x-show="dropdowns.types" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="dropdown-hidden" x-transition:enter-end="dropdown-visible" class="absolute z-20 mt-1 w-72 bg-white rounded-lg shadow-xl border border-slate-200 py-2">
-                            <div class="px-3 py-2 border-b border-slate-100">
-                                <input type="text" x-model="dropdownSearch.type" placeholder="Поиск типа..." class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            </div>
-                            <div class="max-h-60 overflow-y-auto custom-scrollbar py-1">
-                                <template x-for="type in filteredUniqueTypes" :key="type">
-                                    <label class="flex items-center px-3 py-2 hover:bg-blue-50 cursor-pointer transition">
-                                        <input type="checkbox" :value="type" x-model="filters.types" @change="applyFilters()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                                        <span class="ml-2 text-sm text-slate-700 truncate" x-text="type"></span>
-                                    </label>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2 relative" @click.outside="dropdowns.classes = false">
-                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Класс услуги</label>
-                        <button @click="dropdowns.classes = !dropdowns.classes" class="flex items-center justify-between w-56 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <span x-text="filters.classes.length > 0 ? `Выбрано: ${filters.classes.length}` : 'Все классы'"></span>
-                            <svg class="w-4 h-4 ml-2 text-slate-400 transform transition-transform" :class="{'rotate-180': dropdowns.classes}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        </button>
-                        <div x-show="dropdowns.classes" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="dropdown-hidden" x-transition:enter-end="dropdown-visible" class="absolute z-20 mt-1 w-72 bg-white rounded-lg shadow-xl border border-slate-200 py-2">
-                            <div class="px-3 py-2 border-b border-slate-100">
-                                <input type="text" x-model="dropdownSearch.class" placeholder="Поиск класса..." class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            </div>
-                            <div class="max-h-60 overflow-y-auto custom-scrollbar py-1">
-                                <template x-for="cls in filteredUniqueClasses" :key="cls">
-                                    <label class="flex items-center px-3 py-2 hover:bg-blue-50 cursor-pointer transition">
-                                        <input type="checkbox" :value="cls" x-model="filters.classes" @change="applyFilters()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                                        <span class="ml-2 text-sm text-slate-700 truncate" x-text="cls"></span>
-                                    </label>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex items-center justify-between text-sm text-slate-600 px-1">
-                <span>Найдено записей: <span class="font-bold text-slate-900" x-text="filteredData.length"></span></span>
-                <span class="text-xs text-slate-400">Отображается: <span x-text="visibleData.length"></span> (виртуальный рендеринг)</span>
-            </div>
-
-            <div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-                <div class="grid grid-cols-12 gap-4 bg-slate-100 border-b border-slate-200 px-6 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider sticky top-0 z-10">
-                    <div class="col-span-2">Код услуги</div>
-                    <div class="col-span-5">Наименование медицинской услуги</div>
-                    <div class="col-span-1 text-center">Раздел</div>
-                    <div class="col-span-2">Тип услуги</div>
-                    <div class="col-span-2">Класс услуги</div>
-                </div>
-
-                <div class="virtual-container custom-scrollbar" @scroll="handleScroll($event)" x-ref="scrollContainer">
-                    <div class="virtual-content" :style="`height: ${totalHeight}px;`">
-                        <div :style="`padding-top: ${paddingTop}px; padding-bottom: ${paddingBottom}px;`">
-                            <template x-for="(row, index) in visibleData" :key="startIndex + index">
-                                <div class="grid grid-cols-12 gap-4 px-6 py-3 border-b border-slate-100 hover:bg-blue-50/50 transition-colors duration-150 row-animate text-sm items-center" :style="`height: ${rowHeight}px;`">
-                                    <div class="col-span-2 font-mono font-semibold text-blue-700" x-text="row['Код услуги']"></div>
-                                    <div class="col-span-5 text-slate-800 font-medium truncate" :title="row['Наименование медицинской услуги']" x-text="row['Наименование медицинской услуги']"></div>
-                                    <div class="col-span-1 text-center">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200" x-text="row['Раздел']"></span>
-                                    </div>
-                                    <div class="col-span-2 text-slate-600 truncate" :title="row['Тип услуги']" x-text="row['Тип услуги']"></div>
-                                    <div class="col-span-2 text-slate-600 truncate" :title="row['Класс услуги']" x-text="row['Класс услуги']"></div>
-                                </div>
-                            </template>
-                            
-                            <div x-show="filteredData.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-400">
-                                <svg class="w-12 h-12 mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                <p class="text-lg font-medium">Ничего не найдено</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // ==========================================
-        // НАСТРОЙКИ
-        // ==========================================
-        const config = {
-            // ВАЖНО: имя файла должно точно совпадать с тем, что лежит рядом с index.html
-            fileName: 'nomenclature_804.xlsx',
-            // Имя листа, который нужно читать (если не найдётся — возьмётся первый)
-            sheetName: 'номенклатура'
-        };
-        window.config = config;
-
-        window.onerror = function(message, source, lineno, colno, error) {
-            const banner = document.getElementById('js-error-banner');
-            const msg = document.getElementById('js-error-message');
-            if (banner && msg) {
-                banner.classList.remove('hidden');
-                msg.textContent = `${message} (Строка: ${lineno})`;
-            }
-            return false;
-        };
-
-        window.medicalApp = function medicalApp() {
-            return {
-                rawData: [], 
-                filteredData: [], 
-                isLoading: true, 
-                showManualUpload: false, 
-                errorMessage: '',
-                
-                searchQuery: '', 
-                // sections пустой = показывать все разделы
-                filters: { sections: [], types: [], classes: [] },
-                uniqueTypes: [], 
-                uniqueClasses: [], 
-                availableSections: [],
-                dropdowns: { types: false, classes: false },
-                dropdownSearch: { type: '', class: '' }, 
-                
-                rowHeight: 48, 
-                containerHeight: 600, 
-                scrollTop: 0,
-
-                async init() {
-                    this.isLoading = true;
-                    this.showManualUpload = false;
-                    this.errorMessage = '';
-
-                    try {
-                        const response = await fetch(`./${encodeURIComponent(config.fileName)}?t=${Date.now()}`);
-                        if (!response.ok) {
-                            throw new Error(`Файл "${config.fileName}" не найден (ошибка ${response.status}). Проверьте имя файла.`);
-                        }
-                        const buffer = await response.arrayBuffer();
-                        this.processWorkbook(buffer);
-                    } catch (err) {
-                        console.error("Ошибка автозагрузки:", err);
-                        this.errorMessage = err.message;
-                        this.showManualUpload = true;
-                    } finally {
-                        this.isLoading = false;
-                    }
-                },
-
-                handleFileUpload(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-                    
-                    this.errorMessage = '';
-                    this.isLoading = true;
-                    this.showManualUpload = false;
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            this.processWorkbook(e.target.result);
-                            this.isLoading = false;
-                        } catch (err) {
-                            console.error("Ошибка парсинга:", err);
-                            this.isLoading = false;
-                            this.showManualUpload = true;
-                            this.errorMessage = "Не удалось прочитать файл. Убедитесь, что это корректный .xlsx";
-                        }
-                    };
-                    reader.onerror = () => {
-                        this.isLoading = false;
-                        this.showManualUpload = true;
-                        this.errorMessage = "Ошибка чтения файла с диска.";
-                    };
-                    reader.readAsArrayBuffer(file);
-                },
-
-                processWorkbook(arrayBuffer) {
-                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-
-                    // Ищем лист по имени, иначе — первый
-                    let sheetName = workbook.SheetNames.find(
-                        n => n.trim().toLowerCase() === config.sheetName.toLowerCase()
-                    );
-                    if (!sheetName) {
-                        // ищем "умную таблицу" по имени, если лист называется иначе
-                        sheetName = workbook.SheetNames.find(n => 
-                            workbook.Sheets[n] && workbook.Sheets[n]['!name'] &&
-                            String(workbook.Sheets[n]['!name']).toLowerCase().includes('номенклатура')
-                        );
-                    }
-                    if (!sheetName) sheetName = workbook.SheetNames[0];
-
-                    console.log('📄 Читаем лист:', sheetName);
-                    const firstSheet = workbook.Sheets[sheetName];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-
-                    // Нормализация ключей и значений:
-                    // - trim
-                    // - замена неразрывных пробелов
-                    // - замена кириллических А/В на латинские A/B для поля "Раздел"
-                    this.rawData = jsonData.map(row => {
-                        const newRow = {};
-                        for (const key in row) {
-                            const cleanKey = String(key)
-                                .replace(/\u00A0/g, ' ')
-                                .replace(/\s+/g, ' ')
-                                .trim();
-                            let value = String(row[key]).replace(/\u00A0/g, ' ').trim();
-
-                            // Если это поле "Раздел" — нормализуем кириллицу в латиницу
-                            if (cleanKey === 'Раздел') {
-                                value = value.replace(/А/g, 'A').replace(/В/g, 'B').toUpperCase();
-                            }
-
-                            newRow[cleanKey] = value;
-                        }
-                        return newRow;
-                    });
-
-                    // Диагностика
-                    console.group('📊 Диагностика данных');
-                    console.log('Всего строк:', this.rawData.length);
-                    console.log('Ключи первой строки:', this.rawData[0] ? Object.keys(this.rawData[0]) : 'НЕТ ДАННЫХ');
-                    console.log('Первая строка:', this.rawData[0]);
-                    if (this.rawData.length > 0) {
-                        const sections = [...new Set(this.rawData.map(r => r['Раздел']))];
-                        console.log('Разделы в данных:', sections.map(s => `"${s}"`).join(', '));
-                    }
-                    console.groupEnd();
-
-                    this.extractUniqueValues();
-                    this.applyFilters();
-                },
-
-                extractUniqueValues() {
-                    const types = new Set(), classes = new Set(), sections = new Set();
-                    this.rawData.forEach(row => {
-                        if (row['Тип услуги']) types.add(row['Тип услуги']);
-                        if (row['Класс услуги']) classes.add(row['Класс услуги']);
-                        if (row['Раздел']) sections.add(row['Раздел']);
-                    });
-                    this.uniqueTypes = Array.from(types).sort();
-                    this.uniqueClasses = Array.from(classes).sort();
-                    this.availableSections = Array.from(sections).sort();
-                    console.log('Уникальных типов:', this.uniqueTypes.length,
-                                '| классов:', this.uniqueClasses.length,
-                                '| разделов:', this.availableSections);
-                },
-
-                applyFilters() {
-                    const q = this.searchQuery.toLowerCase();
-                    const beforeCount = this.rawData.length;
-                    
-                    this.filteredData = this.rawData.filter(row => {
-                        // Поиск по коду/наименованию
-                        if (q.length > 0) {
-                            const matchCode = String(row['Код услуги'] || '').toLowerCase().includes(q);
-                            const matchName = String(row['Наименование медицинской услуги'] || '').toLowerCase().includes(q);
-                            if (!matchCode && !matchName) return false;
-                        }
-                        // Фильтр по разделу — применяем только если выбраны разделы
-                        if (this.filters.sections.length > 0) {
-                            if (!this.filters.sections.includes(row['Раздел'])) return false;
-                        }
-                        if (this.filters.types.length > 0 && !this.filters.types.includes(row['Тип услуги'])) return false;
-                        if (this.filters.classes.length > 0 && !this.filters.classes.includes(row['Класс услуги'])) return false;
-                        return true;
-                    });
-                    
-                    console.log(`🔍 Фильтр: ${beforeCount} → ${this.filteredData.length} строк`);
-                    
-                    if (this.$refs.scrollContainer) {
-                        this.$refs.scrollContainer.scrollTop = 0;
-                    }
-                    this.scrollTop = 0;
-                },
-
-                resetFilters() {
-                    this.searchQuery = '';
-                    this.filters = { sections: [], types: [], classes: [] };
-                    this.dropdownSearch = { type: '', class: '' };
-                    this.applyFilters();
-                },
-
-                get visibleCount() { return Math.ceil(this.containerHeight / this.rowHeight) + 5; },
-                get startIndex() { return Math.floor(this.scrollTop / this.rowHeight); },
-                get endIndex() { return Math.min(this.startIndex + this.visibleCount, this.filteredData.length); },
-                get visibleData() { return this.filteredData.slice(this.startIndex, this.endIndex); },
-                get totalHeight() { return this.filteredData.length * this.rowHeight; },
-                get paddingTop() { return this.startIndex * this.rowHeight; },
-                get paddingBottom() { return (this.filteredData.length - this.endIndex) * this.rowHeight; },
-                handleScroll(event) { this.scrollTop = event.target.scrollTop; },
-
-                get filteredUniqueTypes() {
-                    const q = this.dropdownSearch.type.toLowerCase();
-                    return q ? this.uniqueTypes.filter(t => t.toLowerCase().includes(q)) : this.uniqueTypes;
-                },
-                get filteredUniqueClasses() {
-                    const q = this.dropdownSearch.class.toLowerCase();
-                    return q ? this.uniqueClasses.filter(c => c.toLowerCase().includes(q)) : this.uniqueClasses;
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: {
+                    sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
                 }
             }
         }
-    </script>
+    }
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+<script defer src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+<style>
+    /* ============ БАЗА ============ */
+    [x-cloak]{ display:none !important; }
+
+    html{ scroll-behavior:smooth; }
+
+    body{
+        margin:0;
+        background:#05070e;
+        color:#e2e8f0;
+        -webkit-font-smoothing:antialiased;
+        -moz-osx-font-smoothing:grayscale;
+        overflow-x:hidden;
+    }
+
+    ::selection{ background:rgba(34,211,238,.32); color:#fff; }
+
+    /* ============ ФОН: АВРОРА / СЕТКА / ШУМ / ПРОЖЕКТОР ============ */
+    .aurora{
+        position:absolute;
+        border-radius:9999px;
+        filter:blur(80px);
+        opacity:.55;
+        will-change:transform;
+    }
+    .a1{
+        width:min(70vw,900px); height:min(70vw,900px); top:-28vh; left:-16vw;
+        background:radial-gradient(circle at 40% 40%, rgba(34,211,238,.55), transparent 62%);
+        animation:float1 22s ease-in-out infinite;
+    }
+    .a2{
+        width:min(60vw,780px); height:min(60vw,780px); top:-14vh; right:-18vw;
+        background:radial-gradient(circle at 50% 50%, rgba(167,139,250,.5), transparent 62%);
+        animation:float2 27s ease-in-out infinite;
+    }
+    .a3{
+        width:min(58vw,720px); height:min(58vw,720px); bottom:-30vh; left:22vw;
+        background:radial-gradient(circle at 50% 50%, rgba(16,185,129,.34), transparent 62%);
+        animation:float3 31s ease-in-out infinite;
+    }
+    @keyframes float1{
+        0%,100%{ transform:translate3d(0,0,0) scale(1); }
+        50%{ transform:translate3d(6vw,5vh,0) scale(1.14); }
+    }
+    @keyframes float2{
+        0%,100%{ transform:translate3d(0,0,0) scale(1.06); }
+        50%{ transform:translate3d(-7vw,6vh,0) scale(.92); }
+    }
+    @keyframes float3{
+        0%,100%{ transform:translate3d(0,0,0) scale(.95); }
+        50%{ transform:translate3d(8vw,-6vh,0) scale(1.12); }
+    }
+
+    .grid-overlay{
+        background-image:
+            linear-gradient(to right, rgba(148,163,184,.075) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(148,163,184,.075) 1px, transparent 1px);
+        background-size:56px 56px;
+        -webkit-mask-image:radial-gradient(ellipse 85% 65% at 50% 0%, #000 25%, transparent 78%);
+        mask-image:radial-gradient(ellipse 85% 65% at 50% 0%, #000 25%, transparent 78%);
+    }
+
+    .noise{
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+        opacity:.035;
+    }
+
+    #spotlight{
+        position:absolute; top:0; left:0;
+        width:900px; height:900px;
+        transform:translate3d(var(--mx, 50vw), var(--my, 30vh), 0) translate(-50%,-50%);
+        background:radial-gradient(circle, rgba(34,211,238,.085) 0%, rgba(167,139,250,.05) 35%, transparent 66%);
+        pointer-events:none;
+    }
+
+    /* ============ СТЕКЛО / СВЕЧЕНИЕ ============ */
+    .glass{
+        background:linear-gradient(160deg, rgba(255,255,255,.055), rgba(255,255,255,.017));
+        border:1px solid rgba(255,255,255,.08);
+        backdrop-filter:blur(16px) saturate(150%);
+        -webkit-backdrop-filter:blur(16px) saturate(150%);
+        box-shadow:0 30px 60px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .glow-border{ position:relative; isolation:isolate; }
+    .glow-border::after{
+        content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
+        background:linear-gradient(135deg, rgba(34,211,238,.6), rgba(34,211,238,0) 42%, rgba(167,139,250,0) 58%, rgba(167,139,250,.6));
+        -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite:xor;
+        mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        mask-composite:exclude;
+        opacity:0; transition:opacity .45s ease;
+        pointer-events:none;
+    }
+    .glow-border:hover::after{ opacity:1; }
+
+    .glow-text{ text-shadow:0 0 18px rgba(34,211,238,.5), 0 0 46px rgba(34,211,238,.22); }
+    .dot-cyan{ box-shadow:0 0 12px 2px rgba(34,211,238,.85); }
+
+    /* ============ ТЕКСТ-ГРАДИЕНТ ============ */
+    .text-gradient{
+        background:linear-gradient(100deg,#67e8f9 0%,#22d3ee 18%,#a78bfa 42%,#67e8f9 68%,#22d3ee 100%);
+        background-size:220% auto;
+        -webkit-background-clip:text; background-clip:text;
+        -webkit-text-fill-color:transparent; color:transparent;
+        animation:shimmer 11s linear infinite;
+    }
+    @keyframes shimmer{ to{ background-position:-220% center; } }
+
+    /* ============ КНОПКИ / ЧИПЫ ============ */
+    .btn{
+        display:inline-flex; align-items:center; gap:.5rem;
+        border-radius:.8rem; padding:.65rem 1rem;
+        font-size:.8125rem; font-weight:600; line-height:1;
+        border:1px solid rgba(255,255,255,.1);
+        background:rgba(255,255,255,.03);
+        color:#cbd5e1;
+        transition:transform .22s cubic-bezier(.34,1.56,.64,1), background .22s, border-color .22s, color .22s, box-shadow .22s;
+        cursor:pointer;
+    }
+    .btn:hover{
+        transform:translateY(-1px);
+        border-color:rgba(255,255,255,.24);
+        background:rgba(255,255,255,.075);
+        color:#fff;
+    }
+    .btn:active{ transform:translateY(0) scale(.975); }
+
+    .btn-primary{
+        background:linear-gradient(135deg, rgba(34,211,238,.2), rgba(167,139,250,.2));
+        border-color:rgba(34,211,238,.38);
+        color:#e0f2fe;
+        box-shadow:0 0 34px -14px rgba(34,211,238,.9);
+    }
+    .btn-primary:hover{
+        background:linear-gradient(135deg, rgba(34,211,238,.3), rgba(167,139,250,.3));
+        box-shadow:0 0 44px -10px rgba(34,211,238,1);
+    }
+
+    .chip{
+        display:inline-flex; align-items:center; justify-content:center;
+        min-width:2.25rem; padding:.4rem .7rem;
+        font-family:'JetBrains Mono', ui-monospace, monospace;
+        font-size:.75rem; font-weight:700;
+        border-radius:.6rem;
+        border:1px solid rgba(255,255,255,.1);
+        background:rgba(255,255,255,.03);
+        color:#94a3b8;
+        cursor:pointer;
+        transition:transform .25s cubic-bezier(.34,1.56,.64,1), color .2s, border-color .2s, background .2s;
+    }
+    .chip:hover{ color:#e2e8f0; border-color:rgba(255,255,255,.26); transform:translateY(-1px); }
+
+    .active-chip{
+        display:inline-flex; align-items:center; gap:.4rem;
+        padding:.28rem .55rem .28rem .6rem;
+        border-radius:.55rem;
+        font-size:.6875rem; font-weight:600;
+        color:#a5f3fc;
+        background:rgba(34,211,238,.1);
+        border:1px solid rgba(34,211,238,.28);
+        transition:all .2s ease;
+        cursor:pointer;
+    }
+    .active-chip:hover{ background:rgba(244,63,94,.14); border-color:rgba(244,63,94,.4); color:#fda4af; }
+
+    /* ============ ПОИСК ============ */
+    .search-input{
+        transition:border-color .25s, background .25s, box-shadow .3s;
+    }
+    .search-input:focus{
+        box-shadow:0 0 0 1px rgba(34,211,238,.35), 0 0 46px -14px rgba(34,211,238,.85);
+    }
+
+    /* ============ КОД УСЛУГИ ============ */
+    .code-chip{
+        display:inline-block;
+        font-family:'JetBrains Mono', ui-monospace, monospace;
+        font-size:11.5px; font-weight:600; letter-spacing:.02em;
+        padding:3px 8px; border-radius:7px;
+        color:#67e8f9;
+        background:rgba(34,211,238,.08);
+        border:1px solid rgba(34,211,238,.22);
+        white-space:nowrap;
+        transition:all .22s ease;
+    }
+    .group:hover .code-chip{
+        background:rgba(34,211,238,.17);
+        border-color:rgba(34,211,238,.48);
+        color:#a5f3fc;
+        box-shadow:0 0 18px -4px rgba(34,211,238,.7);
+    }
+
+    /* ============ ПОДСВЕТКА СОВПАДЕНИЙ ============ */
+    mark.hl{
+        background:linear-gradient(180deg, rgba(34,211,238,.36), rgba(34,211,238,.14));
+        color:#fff;
+        border-radius:3px;
+        padding:0 2px;
+        box-shadow:0 0 14px -4px rgba(34,211,238,.9);
+    }
+
+    /* ============ СКРОЛЛБАР ============ */
+    .custom-scrollbar::-webkit-scrollbar{ width:10px; height:10px; }
+    .custom-scrollbar::-webkit-scrollbar-track{ background:rgba(255,255,255,.02); border-radius:9999px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb{
+        background:linear-gradient(180deg, rgba(34,211,238,.45), rgba(167,139,250,.45));
+        border-radius:9999px;
+        border:2px solid transparent;
+        background-clip:padding-box;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover{
+        background:linear-gradient(180deg, rgba(34,211,238,.75), rgba(167,139,250,.75));
+        background-clip:padding-box;
+    }
+    .custom-scrollbar{ scrollbar-width:thin; scrollbar-color:rgba(34,211,238,.45) transparent; }
+
+    /* ============ ЭКГ-ЗАГРУЗКА ============ */
+    .ecg-path{
+        fill:none;
+        stroke:url(#ecgGrad);
+        stroke-width:2.6;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+        stroke-dasharray:900;
+        stroke-dashoffset:900;
+        animation:ecgDash 2.6s ease-in-out infinite;
+        filter:drop-shadow(0 0 10px rgba(34,211,238,.85));
+    }
+    @keyframes ecgDash{
+        0%{ stroke-dashoffset:900; }
+        55%{ stroke-dashoffset:0; }
+        100%{ stroke-dashoffset:-900; }
+    }
+
+    @keyframes scanX{
+        0%{ transform:translateX(-120%); }
+        100%{ transform:translateX(420%); }
+    }
+    .animate-scan{ animation:scanX 1.6s linear infinite; }
+
+    @keyframes scanDown{
+        0%{ transform:translateY(-160px); }
+        100%{ transform:translateY(900px); }
+    }
+    .scanline{
+        position:absolute; left:0; right:0; top:0; height:120px;
+        background:linear-gradient(180deg, transparent, rgba(34,211,238,.09), transparent);
+        mix-blend-mode:screen;
+        pointer-events:none;
+        animation:scanDown 9s linear infinite;
+    }
+
+    /* ============ ПОЯВЛЕНИЕ БЛОКОВ ============ */
+    @keyframes fadeUp{
+        from{ opacity:0; transform:translateY(16px); }
+        to{ opacity:1; transform:translateY(0); }
+    }
+    .reveal{ animation:fadeUp .65s cubic-bezier(.22,1,.36,1) both; }
+
+    @keyframes pulseRing{
+        0%{ transform:scale(.9); opacity:.65; }
+        70%{ transform:scale(1.35); opacity:0; }
+        100%{ transform:scale(1.35); opacity:0; }
+    }
+    .pulse-ring{ animation:pulseRing 2.6s ease-out infinite; }
+
+    @media (prefers-reduced-motion: reduce){
+        .aurora, .text-gradient, .ecg-path, .scanline, .animate-scan, .reveal, .pulse-ring{
+            animation:none !important;
+        }
+    }
+</style>
+</head>
+
+<body class="min-h-screen bg-[#05070e] font-sans text-slate-200 antialiased">
+
+<!-- ================= ФОНОВЫЕ СЛОИ ================= -->
+<div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div class="aurora a1"></div>
+    <div class="aurora a2"></div>
+    <div class="aurora a3"></div>
+    <div class="grid-overlay absolute inset-0"></div>
+    <div class="noise absolute inset-0"></div>
+    <div id="spotlight"></div>
+    <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent"></div>
+</div>
+
+<!-- ================= БАННЕР JS-ОШИБКИ ================= -->
+<div id="js-error-banner" class="hidden fixed left-1/2 top-4 z-[100] w-[min(92vw,720px)] -translate-x-1/2 rounded-xl border border-red-500/40 bg-red-950/85 p-4 text-red-200 shadow-2xl backdrop-blur-xl">
+    <p class="text-sm font-bold">⚠️ Ошибка загрузки интерфейса</p>
+    <p id="js-error-message" class="mt-1 font-mono text-xs opacity-90"></p>
+    <p class="mt-2 text-xs opacity-70">Попробуйте очистить кэш браузера (Ctrl+F5) или загрузить файл вручную.</p>
+</div>
+
+<div x-data="medicalApp()" x-init="init()">
+
+    <!-- ================= ЭКРАН ЗАГРУЗКИ ================= -->
+    <div x-show="isLoading" x-transition.opacity.duration.500ms
+         class="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-[#05070e]/95 backdrop-blur-xl">
+        <div class="relative">
+            <div class="absolute inset-0 -z-10 rounded-full bg-cyan-500/20 blur-3xl"></div>
+            <svg viewBox="0 0 600 120" class="h-auto w-[300px] md:w-[440px]">
+                <defs>
+                    <linearGradient id="ecgGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+                        <stop offset="45%" stop-color="#22d3ee"/>
+                        <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <path d="M0 60 H110 l10 -30 l13 60 l10 -30 H280 l8 -15 l10 30 l8 -15 H600"
+                      fill="none" stroke="rgba(34,211,238,.14)" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+                <path class="ecg-path" pathLength="900"
+                      d="M0 60 H110 l10 -30 l13 60 l10 -30 H280 l8 -15 l10 30 l8 -15 H600"/>
+            </svg>
+        </div>
+
+        <p class="mt-8 text-[11px] font-semibold uppercase tracking-[0.4em] text-cyan-300/80">Загрузка номенклатуры</p>
+        <p class="mt-2 font-mono text-[11px] text-slate-500" x-text="cfg.fileName"></p>
+
+        <div class="mt-6 h-[2px] w-64 overflow-hidden rounded-full bg-white/10">
+            <div class="animate-scan h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
+        </div>
+    </div>
+
+    <!-- ================= РУЧНАЯ ЗАГРУЗКА ================= -->
+    <div x-show="showManualUpload && !isLoading" x-cloak
+         x-transition:enter="transition ease-out duration-500"
+         x-transition:enter-start="opacity-0 translate-y-4"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="relative z-10 flex min-h-screen items-center justify-center px-4 py-16">
+        <div class="glass glow-border w-full max-w-xl rounded-3xl p-8 text-center">
+            <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-400/30 bg-red-500/10">
+                <svg class="h-8 w-8 text-red-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3h.01M10.34 3.94l-7.5 12.99A1.5 1.5 0 004.14 19.5h15.72a1.5 1.5 0 001.3-2.57l-7.5-12.99a1.5 1.5 0 00-2.6 0z"/>
+                </svg>
+            </div>
+
+            <h2 class="text-xl font-bold text-white">Файл не найден автоматически</h2>
+            <p class="mt-2 text-sm text-red-300" x-text="errorMessage"></p>
+
+            <div class="mt-6 space-y-2 rounded-xl border border-white/8 bg-white/[0.02] p-4 text-left text-xs leading-relaxed text-slate-400">
+                <p>1. Убедитесь, что файл лежит рядом с <span class="font-mono text-slate-200">index.html</span>.</p>
+                <p>2. Проверьте точное совпадение имени и регистра:
+                    <span class="rounded bg-white/10 px-1.5 py-0.5 font-mono text-cyan-300" x-text="cfg.fileName"></span>
+                </p>
+                <p>3. Или загрузите файл вручную — данные не покидают ваш браузер.</p>
+            </div>
+
+            <label class="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-9 transition-all duration-300"
+                   :class="dragActive ? 'border-cyan-400/70 bg-cyan-400/10 scale-[1.01]' : 'border-white/15 bg-white/[0.02] hover:border-cyan-400/50 hover:bg-cyan-400/5'"
+                   @dragover.prevent="dragActive = true"
+                   @dragleave.prevent="dragActive = false"
+                   @drop.prevent="dragActive = false; handleFileDrop($event)">
+                <svg class="mb-3 h-9 w-9 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/>
+                </svg>
+                <span class="text-sm text-slate-300"><span class="font-semibold text-cyan-300">Выберите файл</span> или перетащите сюда</span>
+                <span class="mt-1 font-mono text-[11px] text-slate-500">.xlsx / .xls</span>
+                <input type="file" class="hidden" accept=".xlsx,.xls" @change="handleFileUpload($event)" />
+            </label>
+
+            <button @click="loadFromUrl()" class="btn mt-5">↻ Попробовать снова</button>
+        </div>
+    </div>
+
+    <!-- ================= ОСНОВНОЙ ЭКРАН ================= -->
+    <div x-show="!isLoading && !showManualUpload" x-cloak
+         class="relative z-10 mx-auto w-full max-w-[1440px] px-4 pb-16 pt-8 sm:px-6 md:pt-12 lg:px-8">
+
+        <!-- ---------- HEADER ---------- -->
+        <header class="reveal mb-10 flex flex-col gap-6 md:mb-12 md:flex-row md:items-end md:justify-between">
+            <div class="flex items-start gap-4 md:gap-5">
+                <div class="relative shrink-0">
+                    <div class="pulse-ring absolute inset-0 rounded-2xl bg-cyan-400/30"></div>
+                    <div class="absolute inset-0 rounded-2xl bg-cyan-400/30 blur-xl"></div>
+                    <div class="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/12 bg-gradient-to-br from-cyan-400/20 to-violet-500/20 backdrop-blur md:h-16 md:w-16">
+                        <svg viewBox="0 0 32 32" class="h-8 w-8 md:h-9 md:w-9">
+                            <defs>
+                                <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+                                    <stop stop-color="#67e8f9"/><stop offset="1" stop-color="#a78bfa"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M3 16h5l2.5-7 4 14 3-10 2 3H29" fill="none" stroke="url(#logoGrad)"
+                                  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="mb-3 flex flex-wrap items-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
+                            <span class="relative flex h-1.5 w-1.5">
+                                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                            </span>
+                            online
+                        </span>
+                        <span class="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            реестр 804
+                        </span>
+                    </div>
+
+                    <h1 class="text-[2.15rem] font-extrabold leading-[1.02] tracking-tight sm:text-5xl md:text-6xl">
+                        <span class="text-gradient">Номенклатура</span><br>
+                        <span class="text-slate-100">медицинских услуг</span>
+                    </h1>
+
+                    <p class="mt-4 max-w-xl text-sm leading-relaxed text-slate-400 md:text-[15px]">
+                        Интерактивный справочник с мгновенной фильтрацией, виртуальным рендерингом
+                        и детальными карточками услуг. Всё считается локально — в вашем браузере.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex shrink-0 items-center gap-2">
+                <button @click="exportData()" class="btn btn-primary" title="Скачать текущую выборку в Excel">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                    </svg>
+                    Экспорт
+                </button>
+                <button @click="loadFromUrl()" class="btn !px-3" title="Перезагрузить данные из файла">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356M4.985 19.644v-4.992h4.992m-4.42-5.348a8.25 8.25 0 0113.803-3.186l3.143 3.143M3.5 9.348l3.143-3.143a8.25 8.25 0 0113.803 3.186"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- ---------- СТАТИСТИКА ---------- -->
+        <section class="reveal mb-6 grid grid-cols-2 gap-3 md:mb-8 md:gap-4 lg:grid-cols-4" style="animation-delay:.08s">
+
+            <div class="glass glow-border relative overflow-hidden rounded-2xl p-4 md:p-5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Всего услуг</span>
+                    <svg class="h-4 w-4 text-cyan-400/70" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/>
+                    </svg>
+                </div>
+                <div class="mt-3 font-mono text-3xl font-bold tabular-nums text-white md:text-4xl" x-text="stats.total.toLocaleString('ru-RU')"></div>
+                <div class="mt-1 text-[11px] text-slate-500">в исходной базе</div>
+                <div class="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-cyan-500/25 blur-2xl"></div>
+            </div>
+
+            <div class="glass glow-border relative overflow-hidden rounded-2xl p-4 md:p-5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">В выборке</span>
+                    <svg class="h-4 w-4 text-violet-400/70" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z"/>
+                    </svg>
+                </div>
+                <div class="mt-3 font-mono text-3xl font-bold tabular-nums text-white md:text-4xl" x-text="stats.filtered.toLocaleString('ru-RU')"></div>
+                <div class="mt-1 text-[11px] text-slate-500">после фильтров</div>
+                <div class="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-violet-500/25 blur-2xl"></div>
+            </div>
+
+            <div class="glass glow-border relative overflow-hidden rounded-2xl p-4 md:p-5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Разделов</span>
+                    <svg class="h-4 w-4 text-emerald-400/70" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6z"/>
+                    </svg>
+                </div>
+                <div class="mt-3 font-mono text-3xl font-bold tabular-nums text-white md:text-4xl" x-text="stats.sections"></div>
+                <div class="mt-1 text-[11px] text-slate-500">A · B · C · D …</div>
+                <div class="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-500/25 blur-2xl"></div>
+            </div>
+
+            <div class="glass glow-border relative overflow-hidden rounded-2xl p-4 md:p-5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Типов услуг</span>
+                    <svg class="h-4 w-4 text-pink-400/70" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/>
+                    </svg>
+                </div>
+                <div class="mt-3 font-mono text-3xl font-bold tabular-nums text-white md:text-4xl" x-text="stats.types"></div>
+                <div class="mt-1 text-[11px] text-slate-500">уникальных категорий</div>
+                <div class="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-pink-500/25 blur-2xl"></div>
+            </div>
+        </section>
+
+        <!-- ---------- ПАНЕЛЬ ФИЛЬТРОВ ---------- -->
+        <section class="reveal glass mb-6 rounded-2xl p-4 md:p-5" style="animation-delay:.16s">
+
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <!-- Поиск -->
+                <div class="group relative flex-1">
+                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                        <svg class="h-4 w-4 text-slate-500 transition-colors group-focus-within:text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                        </svg>
+                    </div>
+                    <input x-ref="search" x-model="searchQuery" @input="applyFilters()" type="text"
+                           placeholder="Поиск по коду или наименованию услуги…"
+                           class="search-input w-full rounded-xl border border-white/10 bg-white/[0.03] py-3 pl-11 pr-24 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400/40 focus:bg-white/[0.05]" />
+                    <div class="absolute inset-y-0 right-3 flex items-center gap-1.5">
+                        <button x-show="searchQuery" x-cloak @click="searchQuery = ''; applyFilters()"
+                                class="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white"
+                                title="Очистить">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                        <kbd class="hidden rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 md:inline-block">Ctrl K</kbd>
+                    </div>
+                </div>
+
+                <!-- Дропдауны -->
+                <div class="flex flex-col gap-3 sm:flex-row">
+
+                    <!-- Тип -->
+                    <div class="relative" @click.outside="dropdowns.types = false">
+                        <button @click="dropdowns.types = !dropdowns.types"
+                                class="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-sm text-slate-300 transition hover:border-white/25 hover:bg-white/[0.06] sm:w-52"
+                                :class="dropdowns.types && 'border-cyan-400/45 ring-2 ring-cyan-400/15'">
+                            <span class="flex items-center gap-2 truncate">
+                                <svg class="h-3.5 w-3.5 shrink-0 text-violet-400/80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/>
+                                </svg>
+                                <span class="truncate" x-text="filters.types.length ? 'Типы: ' + filters.types.length : 'Все типы'"></span>
+                            </span>
+                            <svg class="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-300" :class="dropdowns.types && 'rotate-180'"
+                                 fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+
+                        <div x-show="dropdowns.types" x-cloak
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 -translate-y-1 scale-95"
+                             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="glass absolute right-0 z-40 mt-2 w-72 origin-top rounded-xl p-2 shadow-2xl">
+                            <div class="p-1">
+                                <input type="text" x-model="dropdownSearch.type" placeholder="Поиск типа…"
+                                       class="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/40" />
+                            </div>
+                            <div class="custom-scrollbar max-h-60 overflow-y-auto py-1">
+                                <template x-for="type in filteredUniqueTypes" :key="type">
+                                    <label class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition hover:bg-white/[0.06]"
+                                           :class="filters.types.includes(type) && 'bg-cyan-400/10'">
+                                        <input type="checkbox" :value="type" x-model="filters.types" @change="applyFilters()"
+                                               class="h-4 w-4 shrink-0 rounded border-white/20 bg-white/5 accent-cyan-400" />
+                                        <span class="truncate text-[13px] text-slate-300" x-text="type"></span>
+                                    </label>
+                                </template>
+                                <p x-show="filteredUniqueTypes.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">Ничего не найдено</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Класс -->
+                    <div class="relative" @click.outside="dropdowns.classes = false">
+                        <button @click="dropdowns.classes = !dropdowns.classes"
+                                class="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-sm text-slate-300 transition hover:border-white/25 hover:bg-white/[0.06] sm:w-52"
+                                :class="dropdowns.classes && 'border-cyan-400/45 ring-2 ring-cyan-400/15'">
+                            <span class="flex items-center gap-2 truncate">
+                                <svg class="h-3.5 w-3.5 shrink-0 text-cyan-400/80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.75h16.5M3.75 14.25h16.5M6.75 4.5v15m10.5-15v15"/>
+                                </svg>
+                                <span class="truncate" x-text="filters.classes.length ? 'Классы: ' + filters.classes.length : 'Все классы'"></span>
+                            </span>
+                            <svg class="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-300" :class="dropdowns.classes && 'rotate-180'"
+                                 fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+
+                        <div x-show="dropdowns.classes" x-cloak
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 -translate-y-1 scale-95"
+                             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="glass absolute right-0 z-40 mt-2 w-72 origin-top rounded-xl p-2 shadow-2xl">
+                            <div class="p-1">
+                                <input type="text" x-model="dropdownSearch.class" placeholder="Поиск класса…"
+                                       class="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/40" />
+                            </div>
+                            <div class="custom-scrollbar max-h-60 overflow-y-auto py-1">
+                                <template x-for="cls in filteredUniqueClasses" :key="cls">
+                                    <label class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition hover:bg-white/[0.06]"
+                                           :class="filters.classes.includes(cls) && 'bg-cyan-400/10'">
+                                        <input type="checkbox" :value="cls" x-model="filters.classes" @change="applyFilters()"
+                                               class="h-4 w-4 shrink-0 rounded border-white/20 bg-white/5 accent-cyan-400" />
+                                        <span class="truncate text-[13px] text-slate-300" x-text="cls"></span>
+                                    </label>
+                                </template>
+                                <p x-show="filteredUniqueClasses.length === 0" class="px-3 py-4 text-center text-xs text-slate-500">Ничего не найдено</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button @click="resetFilters()" class="btn justify-center" title="Сбросить все фильтры">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        <span class="hidden sm:inline">Сброс</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Разделы -->
+            <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-white/6 pt-4">
+                <span class="mr-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Раздел</span>
+                <template x-for="sec in availableSections" :key="sec">
+                    <button class="chip"
+                            @click="toggleSection(sec)"
+                            :style="filters.sections.includes(sec) ? sectionStyle(sec) : ''"
+                            x-text="sec"></button>
+                </template>
+                <span x-show="availableSections.length === 0" class="text-xs text-slate-500">—</span>
+            </div>
+
+            <!-- Активные фильтры -->
+            <div x-show="hasActiveFilters" x-cloak
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-1"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 class="mt-4 flex flex-wrap items-center gap-2 border-t border-white/6 pt-4">
+                <span class="mr-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Активно</span>
+
+                <template x-for="s in filters.sections" :key="'s' + s">
+                    <button class="active-chip" @click="toggleSection(s)">
+                        <span x-text="'Раздел ' + s"></span>
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </template>
+
+                <template x-for="t in filters.types" :key="'t' + t">
+                    <button class="active-chip" @click="removeFilter('types', t)">
+                        <span class="max-w-[160px] truncate" x-text="t"></span>
+                        <svg class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </template>
+
+                <template x-for="c in filters.classes" :key="'c' + c">
+                    <button class="active-chip" @click="removeFilter('classes', c)">
+                        <span class="max-w-[160px] truncate" x-text="c"></span>
+                        <svg class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </template>
+
+                <button @click="resetFilters()" class="ml-1 text-[11px] text-slate-500 underline-offset-4 transition hover:text-red-400 hover:underline">
+                    сбросить всё
+                </button>
+            </div>
+        </section>
+
+        <!-- ---------- МЕТА-СТРОКА ---------- -->
+        <div class="reveal mb-3 flex flex-wrap items-center justify-between gap-3 px-1" style="animation-delay:.22s">
+            <div class="flex items-center gap-2 text-xs text-slate-400">
+                <span class="dot-cyan inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400"></span>
+                Найдено
+                <span class="font-mono font-bold text-white" x-text="filteredData.length"></span>
+                из
+                <span class="font-mono text-slate-400" x-text="rawData.length"></span>
+            </div>
+            <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-600">
+                virtual scroll · <span x-text="visibleData.length"></span>/<span x-text="filteredData.length"></span>
+            </div>
+        </div>
+
+        <!-- ---------- ТАБЛИЦА ---------- -->
+        <section class="reveal glass relative overflow-hidden rounded-2xl" style="animation-delay:.28s">
+            <div class="scanline"></div>
+
+            <!-- Шапка -->
+            <div class="relative z-10 grid grid-cols-12 items-center gap-3 border-b border-white/10 bg-white/[0.04] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 md:px-6">
+                <button @click="toggleSort('Код услуги')" class="col-span-3 flex items-center gap-1.5 text-left transition hover:text-cyan-300 md:col-span-2">
+                    Код
+                    <span class="text-[9px] opacity-80" x-text="sort.key === 'Код услуги' ? (sort.dir === 1 ? '↑' : '↓') : '↕'"></span>
+                </button>
+                <button @click="toggleSort('Наименование медицинской услуги')" class="col-span-9 flex items-center gap-1.5 text-left transition hover:text-cyan-300 md:col-span-5">
+                    Наименование
+                    <span class="text-[9px] opacity-80" x-text="sort.key === 'Наименование медицинской услуги' ? (sort.dir === 1 ? '↑' : '↓') : '↕'"></span>
+                </button>
+                <div class="hidden text-center md:col-span-1 md:block">Раздел</div>
+                <div class="hidden md:col-span-2 md:block">Тип услуги</div>
+                <div class="hidden md:col-span-2 md:block">Класс</div>
+            </div>
+
+            <!-- Скролл-область -->
+            <div x-show="filteredData.length > 0" x-ref="scrollContainer" @scroll="handleScroll($event)"
+                 class="custom-scrollbar relative z-10 overflow-y-auto"
+                 :style="`height:${containerHeight}px`">
+                <div :style="`height:${totalHeight}px; position:relative;`">
+                    <div class="absolute inset-x-0 top-0" :style="`transform:translateY(${paddingTop}px)`">
+                        <template x-for="(row, index) in visibleData" :key="startIndex + index">
+                            <div class="group relative grid cursor-pointer grid-cols-12 items-center gap-3 border-b border-white/[0.045] px-4 transition-colors duration-150 hover:bg-cyan-400/[0.07] md:px-6"
+                                 :style="`height:${rowHeight}px`"
+                                 @click="openRow(row)">
+
+                                <span class="pointer-events-none absolute left-0 top-1/2 h-7 w-[2px] -translate-y-1/2 rounded-r bg-gradient-to-b from-cyan-300 to-violet-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100"></span>
+
+                                <div class="col-span-3 min-w-0 md:col-span-2">
+                                    <span class="code-chip" x-text="row['Код услуги']"></span>
+                                </div>
+
+                                <div class="col-span-9 min-w-0 md:col-span-5">
+                                    <div class="truncate text-[13px] font-medium leading-tight text-slate-200 transition-colors group-hover:text-white"
+                                         :title="row['Наименование медицинской услуги']"
+                                         x-html="highlight(row['Наименование медицинской услуги'], searchQuery)"></div>
+                                </div>
+
+                                <div class="hidden text-center md:col-span-1 md:block">
+                                    <span class="inline-flex items-center justify-center rounded-md px-2 py-0.5 font-mono text-[11px] font-bold"
+                                          :style="sectionStyle(row['Раздел'])"
+                                          x-text="row['Раздел'] || '—'"></span>
+                                </div>
+
+                                <div class="hidden min-w-0 md:col-span-2 md:block">
+                                    <div class="truncate text-[12px] text-slate-400" :title="row['Тип услуги']"
+                                         x-text="row['Тип услуги'] || '—'"></div>
+                                </div>
+
+                                <div class="hidden min-w-0 md:col-span-2 md:block">
+                                    <div class="truncate text-[12px] text-slate-400" :title="row['Класс услуги']"
+                                         x-text="row['Класс услуги'] || '—'"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Пусто -->
+            <div x-show="filteredData.length === 0" x-cloak
+                 class="flex flex-col items-center justify-center gap-3 px-4 text-center"
+                 :style="`height:${containerHeight}px`">
+                <div class="relative">
+                    <div class="absolute inset-0 rounded-full bg-cyan-500/20 blur-2xl"></div>
+                    <svg class="relative h-12 w-12 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 15.75l-2.489-2.489m0 0a3.375 3.375 0 10-4.773-4.773 3.375 3.375 0 004.774 4.774zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <p class="text-lg font-semibold text-slate-300">Ничего не найдено</p>
+                <p class="text-sm text-slate-500">Попробуйте изменить запрос или сбросить фильтры</p>
+                <button @click="resetFilters()" class="btn mt-1">Сбросить фильтры</button>
+            </div>
+
+            <!-- Футер таблицы -->
+            <div class="relative z-10 flex items-center justify-between border-t border-white/10 bg-white/[0.02] px-4 py-2.5 text-[11px] text-slate-500 md:px-6">
+                <span>
+                    Показано <span class="font-mono text-slate-300" x-text="visibleData.length"></span>
+                    из <span class="font-mono text-slate-300" x-text="filteredData.length"></span>
+                    · виртуальный рендеринг
+                </span>
+                <span class="hidden md:inline">Клик по строке → карточка услуги</span>
+            </div>
+        </section>
+
+        <!-- ---------- ПОДВАЛ ---------- -->
+        <footer class="reveal mt-8 flex flex-col items-center justify-between gap-3 text-[11px] text-slate-600 sm:flex-row">
+            <span>Данные обрабатываются локально в браузере — ничего не отправляется на сервер.</span>
+            <span class="font-mono uppercase tracking-[0.2em]">mednomen · v2.0</span>
+        </footer>
+    </div>
+
+    <!-- ================= DRAWER: КАРТОЧКА УСЛУГИ ================= -->
+    <div x-show="drawerOpen" x-cloak class="fixed inset-0 z-[70]" @keydown.escape.window="drawerOpen = false">
+        <div x-show="drawerOpen"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="absolute inset-0 bg-black/70 backdrop-blur-sm"
+             @click="drawerOpen = false"></div>
+
+        <aside x-show="drawerOpen"
+               x-transition:enter="transition ease-out duration-300"
+               x-transition:enter-start="translate-x-full"
+               x-transition:enter-end="translate-x-0"
+               x-transition:leave="transition ease-in duration-200"
+               x-transition:leave-start="translate-x-0"
+               x-transition:leave-end="translate-x-full"
+               class="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#070b14]/95 shadow-2xl backdrop-blur-2xl">
+
+            <div class="flex items-center justify-between border-b border-white/10 px-6 py-5">
+                <div>
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-400/80">Карточка услуги</p>
+                    <p class="mt-1 font-mono text-[11px] uppercase tracking-widest text-slate-500">номенклатура</p>
+                </div>
+                <button @click="drawerOpen = false" class="btn !px-3 !py-2" title="Закрыть">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="custom-scrollbar flex-1 space-y-6 overflow-y-auto px-6 py-6">
+                <div>
+                    <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Код услуги</p>
+                    <div class="glow-text font-mono text-3xl font-bold text-cyan-300" x-text="selected?.['Код услуги'] || '—'"></div>
+                </div>
+
+                <div class="rounded-xl border border-white/8 bg-white/[0.025] p-4">
+                    <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Наименование</p>
+                    <p class="text-[15px] font-medium leading-relaxed text-slate-100"
+                       x-text="selected?.['Наименование медицинской услуги'] || '—'"></p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3">
+                    <div class="rounded-xl border border-white/8 bg-white/[0.025] p-4">
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Раздел</p>
+                        <span class="inline-flex items-center justify-center rounded-md px-2.5 py-1 font-mono text-xs font-bold"
+                              :style="sectionStyle(selected?.['Раздел'])"
+                              x-text="selected?.['Раздел'] || '—'"></span>
+                    </div>
+
+                    <div class="rounded-xl border border-white/8 bg-white/[0.025] p-4">
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Тип услуги</p>
+                        <p class="text-sm text-slate-200" x-text="selected?.['Тип услуги'] || '—'"></p>
+                    </div>
+
+                    <div class="rounded-xl border border-white/8 bg-white/[0.025] p-4">
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Класс услуги</p>
+                        <p class="text-sm text-slate-200" x-text="selected?.['Класс услуги'] || '—'"></p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2 pt-1">
+                    <button @click="copyText(selected?.['Код услуги'] || '')" class="btn btn-primary justify-center">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m0 0h3.75a1.125 1.125 0 011.125 1.125v9.25z"/>
+                        </svg>
+                        Копировать код
+                    </button>
+                    <button @click="copyRow()" class="btn justify-center">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        Копировать всю строку
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- ================= ТОСТЫ ================= -->
+    <div class="pointer-events-none fixed bottom-6 left-1/2 z-[80] flex -translate-x-1/2 flex-col items-center gap-2">
+        <template x-for="t in toasts" :key="t.id">
+            <div x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-3 scale-95"
+                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95"
+                 class="glass flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-medium text-slate-100 shadow-2xl"
+                 :class="t.type === 'error' && 'border-red-400/40 text-red-200'">
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full"
+                      :class="t.type === 'error' ? 'bg-red-400' : 'bg-cyan-400 dot-cyan'"></span>
+                <span x-text="t.msg"></span>
+            </div>
+        </template>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // НАСТРОЙКИ
+    // ==========================================
+    const config = {
+        // ВАЖНО: имя файла должно точно совпадать с тем, что лежит рядом с index.html
+        fileName: 'nomenclature_804.xlsx',
+        // Имя листа, который нужно читать (если не найдётся — возьмётся первый)
+        sheetName: 'номенклатура'
+    };
+    window.config = config;
+
+    window.onerror = function (message, source, lineno) {
+        const banner = document.getElementById('js-error-banner');
+        const msg = document.getElementById('js-error-message');
+        if (banner && msg) {
+            banner.classList.remove('hidden');
+            msg.textContent = `${message} (Строка: ${lineno})`;
+        }
+        return false;
+    };
+
+    window.medicalApp = function medicalApp() {
+        return {
+            cfg: config,
+
+            rawData: [],
+            filteredData: [],
+            isLoading: true,
+            showManualUpload: false,
+            errorMessage: '',
+            dragActive: false,
+
+            searchQuery: '',
+            filters: { sections: [], types: [], classes: [] },
+            uniqueTypes: [],
+            uniqueClasses: [],
+            availableSections: [],
+            dropdowns: { types: false, classes: false },
+            dropdownSearch: { type: '', class: '' },
+            sort: { key: null, dir: 1 },
+
+            rowHeight: 56,
+            containerHeight: 620,
+            scrollTop: 0,
+
+            selected: null,
+            drawerOpen: false,
+
+            toasts: [],
+            _toastSeq: 0,
+            _counters: {},
+
+            stats: { total: 0, filtered: 0, sections: 0, types: 0 },
+
+            // ================= ИНИЦИАЛИЗАЦИЯ =================
+            init() {
+                this.containerHeight = window.innerWidth < 768 ? 460 : 620;
+                this.initSpotlight();
+                this.loadFromUrl();
+
+                // Горячие клавиши
+                window.addEventListener('keydown', (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                        e.preventDefault();
+                        this.$refs.search?.focus();
+                    }
+                    if (e.key === 'Escape') {
+                        this.drawerOpen = false;
+                        this.dropdowns.types = false;
+                        this.dropdowns.classes = false;
+                    }
+                });
+
+                // Адаптивная высота контейнера
+                let resizeTimer;
+                window.addEventListener('resize', () => {
+                    clearTimeout(resizeTimer);
+                    resizeTimer = setTimeout(() => {
+                        this.containerHeight = window.innerWidth < 768 ? 460 : 620;
+                    }, 150);
+                });
+            },
+
+            initSpotlight() {
+                const el = document.getElementById('spotlight');
+                if (!el) return;
+                let mx = window.innerWidth / 2;
+                let my = window.innerHeight / 3;
+                let queued = false;
+
+                el.style.setProperty('--mx', mx + 'px');
+                el.style.setProperty('--my', my + 'px');
+
+                window.addEventListener('mousemove', (e) => {
+                    mx = e.clientX;
+                    my = e.clientY;
+                    if (queued) return;
+                    queued = true;
+                    requestAnimationFrame(() => {
+                        el.style.setProperty('--mx', mx + 'px');
+                        el.style.setProperty('--my', my + 'px');
+                        queued = false;
+                    });
+                }, { passive: true });
+            },
+
+            // ================= ЗАГРУЗКА ФАЙЛА =================
+            async loadFromUrl() {
+                this.isLoading = true;
+                this.showManualUpload = false;
+                this.errorMessage = '';
+
+                try {
+                    const response = await fetch(`./${encodeURIComponent(config.fileName)}?t=${Date.now()}`);
+                    if (!response.ok) {
+                        throw new Error(`Файл «${config.fileName}» не найден (ошибка ${response.status}). Проверьте имя файла.`);
+                    }
+                    const buffer = await response.arrayBuffer();
+                    this.processWorkbook(buffer);
+                    setTimeout(() => this.animateStats(), 80);
+                } catch (err) {
+                    console.error('Ошибка автозагрузки:', err);
+                    this.errorMessage = err.message;
+                    this.showManualUpload = true;
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (file) this.loadFile(file);
+            },
+
+            handleFileDrop(event) {
+                const file = event.dataTransfer?.files?.[0];
+                if (file) this.loadFile(file);
+            },
+
+            loadFile(file) {
+                this.errorMessage = '';
+                this.isLoading = true;
+                this.showManualUpload = false;
+
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        this.processWorkbook(e.target.result);
+                        this.isLoading = false;
+                        setTimeout(() => this.animateStats(), 80);
+                        this.toast(`Загружено строк: ${this.rawData.length}`);
+                    } catch (err) {
+                        console.error('Ошибка парсинга:', err);
+                        this.isLoading = false;
+                        this.showManualUpload = true;
+                        this.errorMessage = 'Не удалось прочитать файл. Убедитесь, что это корректный .xlsx';
+                    }
+                };
+
+                reader.onerror = () => {
+                    this.isLoading = false;
+                    this.showManualUpload = true;
+                    this.errorMessage = 'Ошибка чтения файла с диска.';
+                };
+
+                reader.readAsArrayBuffer(file);
+            },
+
+            // ================= ПАРСИНГ =================
+            processWorkbook(arrayBuffer) {
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+                let sheetName = workbook.SheetNames.find(
+                    n => n.trim().toLowerCase() === config.sheetName.toLowerCase()
+                );
+                if (!sheetName) {
+                    sheetName = workbook.SheetNames.find(n =>
+                        workbook.Sheets[n] && workbook.Sheets[n]['!name'] &&
+                        String(workbook.Sheets[n]['!name']).toLowerCase().includes('номенклатура')
+                    );
+                }
+                if (!sheetName) sheetName = workbook.SheetNames[0];
+
+                console.log('📄 Читаем лист:', sheetName);
+                const firstSheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+
+                this.rawData = jsonData.map(row => {
+                    const newRow = {};
+                    for (const key in row) {
+                        const cleanKey = String(key)
+                            .replace(/\u00A0/g, ' ')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+
+                        let value = String(row[key]).replace(/\u00A0/g, ' ').trim();
+
+                        if (cleanKey === 'Раздел') {
+                            value = value.replace(/А/g, 'A').replace(/В/g, 'B').toUpperCase();
+                        }
+
+                        newRow[cleanKey] = value;
+                    }
+                    return newRow;
+                });
+
+                console.group('📊 Диагностика данных');
+                console.log('Всего строк:', this.rawData.length);
+                console.log('Ключи первой строки:', this.rawData[0] ? Object.keys(this.rawData[0]) : 'НЕТ ДАННЫХ');
+                console.log('Первая строка:', this.rawData[0]);
+                if (this.rawData.length > 0) {
+                    const sections = [...new Set(this.rawData.map(r => r['Раздел']))];
+                    console.log('Разделы в данных:', sections.map(s => `"${s}"`).join(', '));
+                }
+                console.groupEnd();
+
+                this.extractUniqueValues();
+                this.applyFilters();
+            },
+
+            extractUniqueValues() {
+                const types = new Set(), classes = new Set(), sections = new Set();
+                this.rawData.forEach(row => {
+                    if (row['Тип услуги']) types.add(row['Тип услуги']);
+                    if (row['Класс услуги']) classes.add(row['Класс услуги']);
+                    if (row['Раздел']) sections.add(row['Раздел']);
+                });
+                this.uniqueTypes = Array.from(types).sort();
+                this.uniqueClasses = Array.from(classes).sort();
+                this.availableSections = Array.from(sections).sort();
+                console.log(
+                    'Уникальных типов:', this.uniqueTypes.length,
+                    '| классов:', this.uniqueClasses.length,
+                    '| разделов:', this.availableSections
+                );
+            },
+
+            // ================= ФИЛЬТРАЦИЯ =================
+            applyFilters() {
+                const q = this.searchQuery.trim().toLowerCase();
+                const beforeCount = this.rawData.length;
+
+                let result = this.rawData.filter(row => {
+                    if (q.length > 0) {
+                        const matchCode = String(row['Код услуги'] || '').toLowerCase().includes(q);
+                        const matchName = String(row['Наименование медицинской услуги'] || '').toLowerCase().includes(q);
+                        if (!matchCode && !matchName) return false;
+                    }
+                    if (this.filters.sections.length > 0) {
+                        if (!this.filters.sections.includes(row['Раздел'])) return false;
+                    }
+                    if (this.filters.types.length > 0 && !this.filters.types.includes(row['Тип услуги'])) return false;
+                    if (this.filters.classes.length > 0 && !this.filters.classes.includes(row['Класс услуги'])) return false;
+                    return true;
+                });
+
+                if (this.sort.key) {
+                    const k = this.sort.key;
+                    const d = this.sort.dir;
+                    result.sort((a, b) =>
+                        String(a[k] || '').localeCompare(String(b[k] || ''), 'ru', { numeric: true }) * d
+                    );
+                }
+
+                this.filteredData = result;
+                console.log(`🔍 Фильтр: ${beforeCount} → ${this.filteredData.length} строк`);
+
+                this.scrollTop = 0;
+                if (this.$refs?.scrollContainer) this.$refs.scrollContainer.scrollTop = 0;
+
+                this.animateCount('filtered', this.filteredData.length);
+            },
+
+            toggleSection(sec) {
+                const i = this.filters.sections.indexOf(sec);
+                if (i > -1) this.filters.sections.splice(i, 1);
+                else this.filters.sections.push(sec);
+                this.applyFilters();
+            },
+
+            removeFilter(group, value) {
+                const arr = this.filters[group];
+                const i = arr.indexOf(value);
+                if (i > -1) arr.splice(i, 1);
+                this.applyFilters();
+            },
+
+            resetFilters() {
+                this.searchQuery = '';
+                this.filters = { sections: [], types: [], classes: [] };
+                this.dropdownSearch = { type: '', class: '' };
+                this.applyFilters();
+                this.toast('Фильтры сброшены');
+            },
+
+            toggleSort(key) {
+                if (this.sort.key === key) this.sort.dir = -this.sort.dir;
+                else { this.sort.key = key; this.sort.dir = 1; }
+                this.applyFilters();
+            },
+
+            // ================= СЧЁТЧИКИ =================
+            animateStats() {
+                this.animateCount('total', this.rawData.length);
+                this.animateCount('filtered', this.filteredData.length);
+                this.animateCount('sections', this.availableSections.length);
+                this.animateCount('types', this.uniqueTypes.length);
+            },
+
+            animateCount(key, target) {
+                const from = this.stats[key] || 0;
+                if (from === target) return;
+
+                this._counters[key] = (this._counters[key] || 0) + 1;
+                const token = this._counters[key];
+                const start = performance.now();
+                const duration = 850;
+
+                const step = (now) => {
+                    if (this._counters[key] !== token) return;
+                    const p = Math.min(1, (now - start) / duration);
+                    const eased = 1 - Math.pow(1 - p, 3);
+                    this.stats[key] = Math.round(from + (target - from) * eased);
+                    if (p < 1) requestAnimationFrame(step);
+                };
+                requestAnimationFrame(step);
+            },
+
+            // ================= ВИРТУАЛЬНЫЙ СКРОЛЛ =================
+            get visibleCount() {
+                return Math.ceil(this.containerHeight / this.rowHeight) + 5;
+            },
+            get startIndex() {
+                return Math.floor(this.scrollTop / this.rowHeight);
+            },
+            get endIndex() {
+                return Math.min(this.startIndex + this.visibleCount, this.filteredData.length);
+            },
+            get visibleData() {
+                return this.filteredData.slice(this.startIndex, this.endIndex);
+            },
+            get totalHeight() {
+                return this.filteredData.length * this.rowHeight;
+            },
+            get paddingTop() {
+                return this.startIndex * this.rowHeight;
+            },
+            get paddingBottom() {
+                return (this.filteredData.length - this.endIndex) * this.rowHeight;
+            },
+            handleScroll(event) {
+                this.scrollTop = event.target.scrollTop;
+            },
+
+            // ================= ДРОПДАУНЫ =================
+            get filteredUniqueTypes() {
+                const q = this.dropdownSearch.type.toLowerCase().trim();
+                return q ? this.uniqueTypes.filter(t => t.toLowerCase().includes(q)) : this.uniqueTypes;
+            },
+            get filteredUniqueClasses() {
+                const q = this.dropdownSearch.class.toLowerCase().trim();
+                return q ? this.uniqueClasses.filter(c => c.toLowerCase().includes(q)) : this.uniqueClasses;
+            },
+
+            get hasActiveFilters() {
+                return this.searchQuery.length > 0
+                    || this.filters.sections.length > 0
+                    || this.filters.types.length > 0
+                    || this.filters.classes.length > 0;
+            },
+
+            // ================= ОФОРМЛЕНИЕ ДАННЫХ =================
+            escapeHtml(s) {
+                return String(s).replace(/[&<>"']/g, c => ({
+                    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+                }[c]));
+            },
+
+            highlight(text, query) {
+                const safe = this.escapeHtml(text ?? '');
+                const q = (query ?? '').trim();
+                if (!q) return safe;
+                const pattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                try {
+                    return safe.replace(new RegExp(pattern, 'gi'), m => `<mark class="hl">${m}</mark>`);
+                } catch (e) {
+                    return safe;
+                }
+            },
+
+            sectionStyle(sec) {
+                const map = {
+                    'A': { bg: 'rgba(34,211,238,.12)', bd: 'rgba(34,211,238,.38)', tx: '#67e8f9' },
+                    'B': { bg: 'rgba(167,139,250,.12)', bd: 'rgba(167,139,250,.38)', tx: '#c4b5fd' },
+                    'C': { bg: 'rgba(52,211,153,.12)', bd: 'rgba(52,211,153,.38)', tx: '#6ee7b7' },
+                    'D': { bg: 'rgba(251,191,36,.12)', bd: 'rgba(251,191,36,.38)', tx: '#fcd34d' },
+                    'E': { bg: 'rgba(244,114,182,.12)', bd: 'rgba(244,114,182,.38)', tx: '#f9a8d4' }
+                };
+                const k = String(sec || '').trim().toUpperCase()[0];
+                const c = map[k] || { bg: 'rgba(148,163,184,.12)', bd: 'rgba(148,163,184,.3)', tx: '#cbd5e1' };
+                return `background:${c.bg}; border:1px solid ${c.bd}; color:${c.tx};`;
+            },
+
+            // ================= КАРТОЧКА / КОПИРОВАНИЕ / ЭКСПОРТ =================
+            openRow(row) {
+                this.selected = row;
+                this.drawerOpen = true;
+            },
+
+            copyText(text) {
+                if (!text) return;
+                const short = text.length > 46 ? text.slice(0, 46) + '…' : text;
+                const done = () => this.toast('Скопировано: ' + short);
+
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(done).catch(() => this.fallbackCopy(text, done));
+                } else {
+                    this.fallbackCopy(text, done);
+                }
+            },
+
+            fallbackCopy(text, cb) {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    cb();
+                } catch (e) {
+                    this.toast('Не удалось скопировать', 'error');
+                }
+                document.body.removeChild(ta);
+            },
+
+            copyRow() {
+                if (!this.selected) return;
+                const s = this.selected;
+                const txt = [
+                    `Код: ${s['Код услуги'] || ''}`,
+                    `Наименование: ${s['Наименование медицинской услуги'] || ''}`,
+                    `Раздел: ${s['Раздел'] || ''}`,
+                    `Тип: ${s['Тип услуги'] || ''}`,
+                    `Класс: ${s['Класс услуги'] || ''}`
+                ].join('\n');
+                this.copyText(txt);
+            },
+
+            exportData() {
+                if (!this.filteredData.length) {
+                    this.toast('Нечего экспортировать', 'error');
+                    return;
+                }
+                try {
+                    const ws = XLSX.utils.json_to_sheet(this.filteredData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Выгрузка');
+                    const d = new Date().toISOString().slice(0, 10);
+                    XLSX.writeFile(wb, `nomenklatura_${d}.xlsx`);
+                    this.toast(`Экспортировано записей: ${this.filteredData.length}`);
+                } catch (e) {
+                    console.error(e);
+                    this.toast('Ошибка экспорта', 'error');
+                }
+            },
+
+            // ================= ТОСТЫ =================
+            toast(msg, type = 'ok') {
+                const id = ++this._toastSeq;
+                this.toasts.push({ id, msg, type });
+                setTimeout(() => {
+                    this.toasts = this.toasts.filter(t => t.id !== id);
+                }, 2800);
+            }
+        };
+    };
+</script>
 </body>
 </html>
