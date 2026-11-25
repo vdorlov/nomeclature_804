@@ -6,7 +6,6 @@
     <title>Номенклатура медицинских услуг</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">
     
-    <!-- ИСПРАВЛЕНО: добавлен defer к Alpine и SheetJS, чтобы они грузились после парсинга DOM -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <script defer src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -32,7 +31,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased">
 
-    <!-- Встроенный перехватчик ошибок: если JS сломается, вы увидите это на экране -->
     <div id="js-error-banner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 m-4 rounded shadow">
         <p class="font-bold">⚠️ Ошибка загрузки интерфейса</p>
         <p id="js-error-message" class="text-sm mt-1 font-mono"></p>
@@ -48,13 +46,11 @@
             <p class="text-slate-500">Интерактивный справочник услуг с мгновенной фильтрацией</p>
         </div>
 
-        <!-- 1. Индикатор загрузки -->
         <div x-show="isLoading" class="flex flex-col items-center justify-center py-20">
             <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
             <p class="text-slate-600 font-medium animate-pulse">Загрузка данных...</p>
         </div>
 
-        <!-- 2. Блок ошибки / ручной загрузки -->
         <div x-show="!isLoading && showManualUpload" class="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
             <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
@@ -76,10 +72,8 @@
             </label>
         </div>
 
-        <!-- 3. Основной интерфейс -->
         <div x-show="!isLoading && !showManualUpload" class="space-y-6">
             
-            <!-- Панель фильтров -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
                 <div class="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
                     <div class="relative w-full md:w-96">
@@ -98,7 +92,7 @@
                     <div class="space-y-2">
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Раздел</label>
                         <div class="flex gap-4 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                            <template x-for="sec in ['A', 'B']" :key="sec">
+                            <template x-for="sec in availableSections" :key="sec">
                                 <label class="inline-flex items-center cursor-pointer group">
                                     <input type="checkbox" :value="sec" x-model="filters.sections" @change="applyFilters()" class="form-checkbox h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
                                     <span class="ml-2 text-sm font-medium text-slate-700 group-hover:text-blue-700" x-text="'Раздел ' + sec"></span>
@@ -193,19 +187,16 @@
 
     <script>
         // ==========================================
-        // НАСТРОЙКИ: ПРОВЕРЬТЕ ЭТО ЗНАЧЕНИЕ!
+        // НАСТРОЙКИ
         // ==========================================
         const config = {
-            // Имя файла должно совпадать ПОЛНОСТЬЮ, включая заглавные/строчные буквы!
-            // Откройте ваш репозиторий GitHub и скопируйте имя файла оттуда.
-            fileName: 'nomenclature_804.xlsx' 
+            // ВАЖНО: имя файла должно точно совпадать с тем, что лежит рядом с index.html
+            fileName: 'nomenclature_804.xlsx',
+            // Имя листа, который нужно читать (если не найдётся — возьмётся первый)
+            sheetName: 'номенклатура'
         };
-
-        // ИСПРАВЛЕНО: делаем config доступным внутри Alpine-компонента
-        // (Alpine ищет переменные в глобальной области видимости)
         window.config = config;
 
-        // Глобальный перехватчик ошибок для вывода на экран
         window.onerror = function(message, source, lineno, colno, error) {
             const banner = document.getElementById('js-error-banner');
             const msg = document.getElementById('js-error-message');
@@ -216,7 +207,6 @@
             return false;
         };
 
-        // ИСПРАВЛЕНО: явно регистрируем функцию в window, чтобы Alpine её нашёл
         window.medicalApp = function medicalApp() {
             return {
                 rawData: [], 
@@ -226,9 +216,11 @@
                 errorMessage: '',
                 
                 searchQuery: '', 
-                filters: { sections: ['A', 'B'], types: [], classes: [] },
+                // sections пустой = показывать все разделы
+                filters: { sections: [], types: [], classes: [] },
                 uniqueTypes: [], 
                 uniqueClasses: [], 
+                availableSections: [],
                 dropdowns: { types: false, classes: false },
                 dropdownSearch: { type: '', class: '' }, 
                 
@@ -242,21 +234,17 @@
                     this.errorMessage = '';
 
                     try {
-                        const response = await fetch(`./${config.fileName}?t=${Date.now()}`);
-                        
+                        const response = await fetch(`./${encodeURIComponent(config.fileName)}?t=${Date.now()}`);
                         if (!response.ok) {
-                            throw new Error(`Файл не найден (ошибка ${response.status}). Проверьте точное имя файла в настройках кода.`);
+                            throw new Error(`Файл "${config.fileName}" не найден (ошибка ${response.status}). Проверьте имя файла.`);
                         }
-                        
                         const buffer = await response.arrayBuffer();
                         this.processWorkbook(buffer);
-                        
                     } catch (err) {
                         console.error("Ошибка автозагрузки:", err);
                         this.errorMessage = err.message;
                         this.showManualUpload = true;
                     } finally {
-                        // ГАРАНТИРОВАННО останавливаем загрузку
                         this.isLoading = false;
                     }
                 },
@@ -291,44 +279,98 @@
 
                 processWorkbook(arrayBuffer) {
                     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                    // Ищем лист по имени, иначе — первый
+                    let sheetName = workbook.SheetNames.find(
+                        n => n.trim().toLowerCase() === config.sheetName.toLowerCase()
+                    );
+                    if (!sheetName) {
+                        // ищем "умную таблицу" по имени, если лист называется иначе
+                        sheetName = workbook.SheetNames.find(n => 
+                            workbook.Sheets[n] && workbook.Sheets[n]['!name'] &&
+                            String(workbook.Sheets[n]['!name']).toLowerCase().includes('номенклатура')
+                        );
+                    }
+                    if (!sheetName) sheetName = workbook.SheetNames[0];
+
+                    console.log('📄 Читаем лист:', sheetName);
+                    const firstSheet = workbook.Sheets[sheetName];
                     const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-                    
+
+                    // Нормализация ключей и значений:
+                    // - trim
+                    // - замена неразрывных пробелов
+                    // - замена кириллических А/В на латинские A/B для поля "Раздел"
                     this.rawData = jsonData.map(row => {
                         const newRow = {};
                         for (const key in row) {
-                            newRow[key.trim()] = String(row[key]).trim();
+                            const cleanKey = String(key)
+                                .replace(/\u00A0/g, ' ')
+                                .replace(/\s+/g, ' ')
+                                .trim();
+                            let value = String(row[key]).replace(/\u00A0/g, ' ').trim();
+
+                            // Если это поле "Раздел" — нормализуем кириллицу в латиницу
+                            if (cleanKey === 'Раздел') {
+                                value = value.replace(/А/g, 'A').replace(/В/g, 'B').toUpperCase();
+                            }
+
+                            newRow[cleanKey] = value;
                         }
                         return newRow;
                     });
+
+                    // Диагностика
+                    console.group('📊 Диагностика данных');
+                    console.log('Всего строк:', this.rawData.length);
+                    console.log('Ключи первой строки:', this.rawData[0] ? Object.keys(this.rawData[0]) : 'НЕТ ДАННЫХ');
+                    console.log('Первая строка:', this.rawData[0]);
+                    if (this.rawData.length > 0) {
+                        const sections = [...new Set(this.rawData.map(r => r['Раздел']))];
+                        console.log('Разделы в данных:', sections.map(s => `"${s}"`).join(', '));
+                    }
+                    console.groupEnd();
 
                     this.extractUniqueValues();
                     this.applyFilters();
                 },
 
                 extractUniqueValues() {
-                    const types = new Set(), classes = new Set();
+                    const types = new Set(), classes = new Set(), sections = new Set();
                     this.rawData.forEach(row => {
                         if (row['Тип услуги']) types.add(row['Тип услуги']);
                         if (row['Класс услуги']) classes.add(row['Класс услуги']);
+                        if (row['Раздел']) sections.add(row['Раздел']);
                     });
                     this.uniqueTypes = Array.from(types).sort();
                     this.uniqueClasses = Array.from(classes).sort();
+                    this.availableSections = Array.from(sections).sort();
+                    console.log('Уникальных типов:', this.uniqueTypes.length,
+                                '| классов:', this.uniqueClasses.length,
+                                '| разделов:', this.availableSections);
                 },
 
                 applyFilters() {
                     const q = this.searchQuery.toLowerCase();
+                    const beforeCount = this.rawData.length;
+                    
                     this.filteredData = this.rawData.filter(row => {
+                        // Поиск по коду/наименованию
                         if (q.length > 0) {
                             const matchCode = String(row['Код услуги'] || '').toLowerCase().includes(q);
                             const matchName = String(row['Наименование медицинской услуги'] || '').toLowerCase().includes(q);
                             if (!matchCode && !matchName) return false;
                         }
-                        if (!this.filters.sections.includes(row['Раздел'])) return false;
+                        // Фильтр по разделу — применяем только если выбраны разделы
+                        if (this.filters.sections.length > 0) {
+                            if (!this.filters.sections.includes(row['Раздел'])) return false;
+                        }
                         if (this.filters.types.length > 0 && !this.filters.types.includes(row['Тип услуги'])) return false;
                         if (this.filters.classes.length > 0 && !this.filters.classes.includes(row['Класс услуги'])) return false;
                         return true;
                     });
+                    
+                    console.log(`🔍 Фильтр: ${beforeCount} → ${this.filteredData.length} строк`);
                     
                     if (this.$refs.scrollContainer) {
                         this.$refs.scrollContainer.scrollTop = 0;
@@ -338,7 +380,7 @@
 
                 resetFilters() {
                     this.searchQuery = '';
-                    this.filters = { sections: ['A', 'B'], types: [], classes: [] };
+                    this.filters = { sections: [], types: [], classes: [] };
                     this.dropdownSearch = { type: '', class: '' };
                     this.applyFilters();
                 },
