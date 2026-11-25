@@ -6,10 +6,10 @@
     <title>Номенклатура медицинских услуг</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">
     
-    <!-- Скрипты загружаются в надежном порядке -->
+    <!-- ИСПРАВЛЕНО: добавлен defer к Alpine и SheetJS, чтобы они грузились после парсинга DOM -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -201,6 +201,10 @@
             fileName: 'nomenclature_804.xlsx' 
         };
 
+        // ИСПРАВЛЕНО: делаем config доступным внутри Alpine-компонента
+        // (Alpine ищет переменные в глобальной области видимости)
+        window.config = config;
+
         // Глобальный перехватчик ошибок для вывода на экран
         window.onerror = function(message, source, lineno, colno, error) {
             const banner = document.getElementById('js-error-banner');
@@ -212,7 +216,8 @@
             return false;
         };
 
-        function medicalApp() {
+        // ИСПРАВЛЕНО: явно регистрируем функцию в window, чтобы Alpine её нашёл
+        window.medicalApp = function medicalApp() {
             return {
                 rawData: [], 
                 filteredData: [], 
